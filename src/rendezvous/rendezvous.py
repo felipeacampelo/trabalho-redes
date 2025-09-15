@@ -65,7 +65,6 @@ class RendezvousServer:
                     
                     log.warning("Timeout waiting data from %s; sending error and closing", peer)
 
-                    
                     try:
                         connection.sendall((msg + "\n").encode("utf-8"))
                     finally:
@@ -96,7 +95,6 @@ class RendezvousServer:
                 status = "?"
             log.info("Responded to %s (status=%s)", peer, status)
 
-            
             # after sending response, just close connection
             return
                

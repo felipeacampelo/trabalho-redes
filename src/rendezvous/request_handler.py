@@ -94,9 +94,20 @@ class RequestHandler:
         elif cmd == "UNREGISTER":
             try:
                 namespace = args.get("namespace")
-                self.peer_db.remove_peer(client_ip, namespace)
+                name = args.get("name")
+                port = args.get("port")
                 
-                log.info("UNREGISTER ip=%s ns=%r OK", client_ip, namespace)
+                if port is not None:
+                    try:
+                        port = int(port)
+                    except (ValueError, TypeError):
+                        log.warning("UNREGISTER invalid (port:{port})")
+                        return json.dumps({"status": "ERROR", "error": "bad_port ({port})"})
+                    
+                self.peer_db.remove_peer(client_ip, namespace, name=name, port=port)
+                
+                log.info("UNREGISTER ip=%s ns=%r name=%r port=%r OK", 
+                         client_ip, namespace, name, port)
 
                 return json.dumps({"status": "OK"})
             

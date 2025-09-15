@@ -84,15 +84,30 @@ class PeerDatabase:
 
 
     def add_peer(self, peer: PeerRecord):
+        """Upsert by (ip, namespace, name) to avoid duplicates."""
+        
         with self._lock:
             # optional dedup key: (ip, namespace, name)
-            self.peers = [p for p in self.peers
-                          if not (p.ip == peer.ip and p.namespace == peer.namespace and p.name == peer.name)]
             self._sweep()
-            self.peers.append(peer)
+            updated = False
+            
+            for i, p in enumerate(self.peers):
+                if p.ip == peer.ip and p.namespace == peer.namespace and p.name == peer.name:
+                    # update existing record (port/ttl/timestamp/observed_*)
+                    self.peers[i] = peer  # update existing
+                    updated = True
+                    break
+            if not updated:
+                self.peers.append(peer)
+            
             self._save_locked()
 
-    def remove_peer(self, ip, namespace, name=None, port=None):
+    def remove_peer(self, ip : str, namespace : str, name=None, port=None):
+        """
+        Remove all peers that match (ip, namespace) and, if provided, also match name and/or port.
+        Thread-safe: the in-memory list and the persisted file are updated under the lock.
+        """
+        
         with self._lock:
             before = len(self.peers)
             
@@ -108,6 +123,8 @@ class PeerDatabase:
             removed = before - len(self.peers)
             log.info("Removed %d peer(s) ip=%s ns=%s name=%r port=%r",
                      removed, ip, namespace, name, port)
+            
+            # Persist under the same lock to keep file and memory in sync.
             self._save_locked()
 
         
