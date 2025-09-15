@@ -1,11 +1,12 @@
 
-import socket
+import concurrent.futures, socket
 import threading
 from peer_db import PeerDatabase
 from protocol_parser import ProtocolParser
 from request_handler import RequestHandler
 import json
 import logging
+
 
 log = logging.getLogger("rendezvous")
 
@@ -26,8 +27,13 @@ class RendezvousServer:
         line = None
         peer = f"{address[0]}:{address[1]}"
         log.info(f"Connection from {peer}")
+        t = threading.current_thread()
+        old_name = t.name
         
         try:
+            # Changing thread name for better logging
+            t.name = f"cli-{address[0]}:{address[1]}"
+            
             while True:
                 try:
                     chunk = connection.recv(4096)
@@ -95,6 +101,7 @@ class RendezvousServer:
             return
                
         finally:
+            t.name = old_name
             try:
                 connection.shutdown(socket.SHUT_RDWR)
             except Exception:
@@ -105,23 +112,22 @@ class RendezvousServer:
 
             
             
-    def start(self):
+    def start(self, max_workers: int = 64, backlog: int = 128):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((self.host, self.port))
-        server.listen()
-        log.info("Rendezvous server listening on %s:%d", self.host, self.port)
+        server.listen(backlog)
         
+        log.info("Rendezvous server listening on %s:%d (backlog=%d, workers=%d)",
+                 self.host, self.port, backlog, max_workers)
         
-        while True:
-            connection, address = server.accept()
-            
-            threading.Thread(
-                target=self.handle_client,
-                args=(connection, address),
-                daemon=True,
-                name=f"cli-{address[0]}:{address[1]}",
-            ).start()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix='cli'
+        ) as executor:
+            while True:
+                connection, address = server.accept()
+                # Hand over to the pool (limits concurrency)
+                executor.submit(self.handle_client, connection, address)
         
 
 
