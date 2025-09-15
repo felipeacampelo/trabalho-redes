@@ -24,6 +24,9 @@ class RequestHandler:
                 client_ip, observed_port, namespace, name, port, ttl
             )
             
+            if not isinstance(name, str) or not name or len(name) > 64:
+                log.warning("REGISTER invalid (name)")
+                return json.dumps({"status": "ERROR", "error": "bad_name"})
             
             # TTL clamp (1 .. 86400)
             try:
@@ -77,6 +80,7 @@ class RequestHandler:
         elif cmd == "DISCOVER":
             namespace = args.get("namespace")
             peers = self.peer_db.get_peers(namespace)
+            now = datetime.now(timezone.utc)
             
             peer_list = [{
                 "ip": p.ip,
@@ -84,6 +88,7 @@ class RequestHandler:
                 "name": p.name,
                 "namespace": p.namespace,
                 "ttl": p.ttl,
+                "expires_in": max(0, int(p.ttl - (now - p.timestamp).total_seconds())),
                 "observed_ip": p.observed_ip,
                 "observed_port": p.observed_port
             } for p in peers]
@@ -102,8 +107,8 @@ class RequestHandler:
                     try:
                         port = int(port)
                     except (ValueError, TypeError):
-                        log.warning("UNREGISTER invalid (port:{port})")
-                        return json.dumps({"status": "ERROR", "error": "bad_port ({port})"})
+                        log.warning(f"UNREGISTER invalid (port:{port})")
+                        return json.dumps({"status": "ERROR", "error": f"bad_port ({port})"})
                     
                 self.peer_db.remove_peer(client_ip, namespace, name=name, port=port)
                 

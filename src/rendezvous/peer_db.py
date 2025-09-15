@@ -1,9 +1,8 @@
 import json
 import os
 from models import PeerRecord
-from datetime import datetime
-import threading, tempfile
-from dataclasses import asdict
+from datetime import datetime, timezone
+import threading
 import logging
 
 log = logging.getLogger("peer_db")
@@ -39,6 +38,20 @@ class PeerDatabase:
                 data["timestamp"] = datetime.fromisoformat(s)
             elif isinstance(ts, (int, float)):
                 data["timestamp"] = datetime.fromtimestamp(ts, tz=timezone.utc)
+                
+            try:
+                data["port"] = int(data["port"])
+            except Exception:
+                log.warning("Skipping record with invalid port: %r", data.get("port"))
+                continue
+            
+            if "observed_port" in data and data["observed_port"] is not None:
+               try:
+                   data["observed_port"] = int(data["observed_port"])
+               except Exception:
+                    # if invalid, just discard the optional field
+                    log.warning("Dropping invalid observed_port: %r", data.get("observed_port"))
+                    data["observed_port"] = None
 
             records.append(PeerRecord(**data))
             
@@ -138,4 +151,4 @@ class PeerDatabase:
     
     def get_all_db(self):
         with self._lock:
-            return self.peers
+            return list(self.peers)
