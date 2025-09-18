@@ -66,8 +66,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--port",
         type=int,
-        default=5000,
-        help="Port for the rendezvous server (default: 5000).",
+        default=8080,
+        help="Port for the rendezvous server (default: 8080).",
     )
     
     args = parser.parse_args()
