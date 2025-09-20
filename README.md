@@ -1,6 +1,7 @@
 # PyP2P - Projeto de Programação P2P
+Este projeto foi desenvolvido para a disciplina CIC0124 - Redes de Computadores, do Departamento de Ciência da Computação da Universidade de Brasília. O objetivo deste documento é detalhar os protocolos de camada de aplicação implementados pelo Servidor Rendezvous, bem como os Clientes P2P, que juntos viabilizam uma aplicação de Chat P2P e o mecanismo de *Peer Relay*.
 
-Este é um projeto de programação para a disciplina de Redes de Computadores, do Departamento de Ciências da Computação da Universidade de Brasília. Objetivo desta página é descrever os protocolos de camada de aplicação implementados pelo Servidor Rendezvous e os Clientes P2P que implementam uma aplicação de Chat P2P e *Peer Relay*.
+
 
 ## Rendezvous - Protocolo de Aplicação do Servidor Rendezvous
 
@@ -160,7 +161,7 @@ Remove peers previamente registrados.
 
 #### Resumo do Ciclo de Uso
 
-1. O cliente se conecta ao servidor rendezvous (TCP/8888 por padrão).  
+1. O cliente se conecta ao servidor rendezvous (IP: pyp2p.mfcaetano.cc e TCP/8080 por padrão).  
 2. Envia um **REGISTER** para se anunciar.  
 3. Usa **DISCOVER** para consultar peers de um namespace.  
 4. Pode **UNREGISTER** ao sair.  
