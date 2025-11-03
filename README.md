@@ -48,7 +48,7 @@ Registra (ou atualiza) um peer no servidor.
 
 **Resposta de sucesso:**
 ```json
-{ "status": "OK" }
+{"status": "OK", "ttl": 3600, "observed_ip": "186.235.84.225", "observed_port": 54572}
 ```
 
 **Possíveis erros:**
@@ -99,11 +99,15 @@ Retorna a lista de peers registrados em um namespace.
 **Requisição para `namespace` inexistente**
 ```json
 { "type": "DISCOVER", "namespace": "know-without-study" }
+
+{ "type": "DISCOVER" }
 ```
 
 **Resposta:**
 ```json
 {"status": "OK", "peers": []}
+
+{"status": "OK", "peers": [{"ip": "45.171.101.167", "port": 8081, "name": "vm_giga", "namespace": "CIC", "ttl": 7200, "expires_in": 5780, "observed_ip": "45.171.101.167", "observed_port": 35466}, {"ip": "186.235.84.225", "port": 4000, "name": "alice", "namespace": "UnB", "ttl": 3600, "expires_in": 3519, "observed_ip": "186.235.84.225", "observed_port": 54572}]}
 ```
 
 ---
