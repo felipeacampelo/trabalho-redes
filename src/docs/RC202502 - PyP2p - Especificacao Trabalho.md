@@ -52,38 +52,38 @@ A **arquitetura peer-to-peer (P2P)** constitui um modelo de comunicação distri
 ### Características Principais
 
 1. **Descentralização**  
-   A inexistência de uma autoridade central reduz o risco de ponto único de falha e distribui a responsabilidade entre os peers. Essa característica aumenta a autonomia da rede e dificulta a censura ou controle centralizado.
+    A inexistência de uma autoridade central reduz o risco de ponto único de falha e distribui a responsabilidade entre os peers. Essa característica aumenta a autonomia da rede e dificulta a censura ou controle centralizado.
 
 2. **Escalabilidade**  
-   O aumento no número de participantes contribui positivamente para a capacidade global da rede. Cada peer adicional introduz novos recursos de conectividade e processamento, tornando o sistema naturalmente escalável.
+    O aumento no número de participantes contribui positivamente para a capacidade global da rede. Cada peer adicional introduz novos recursos de conectividade e processamento, tornando o sistema naturalmente escalável.
 
 3. **Resiliência**  
-   A arquitetura P2P é intrinsecamente tolerante a falhas. A saída de um peer não compromete o funcionamento da rede, uma vez que outros peers podem assumir o encaminhamento ou a redistribuição dos recursos.
+    A arquitetura P2P é intrinsecamente tolerante a falhas. A saída de um peer não compromete o funcionamento da rede, uma vez que outros peers podem assumir o encaminhamento ou a redistribuição dos recursos.
 
 4. **Distribuição de Recursos**  
-   Dados e serviços são fragmentados e replicados entre diferentes peers. Esse mecanismo evita sobrecarga em um único ponto e promove redundância, o que contribui para maior disponibilidade e desempenho.
+    Dados e serviços são fragmentados e replicados entre diferentes peers. Esse mecanismo evita sobrecarga em um único ponto e promove redundância, o que contribui para maior disponibilidade e desempenho.
 
 5. **Heterogeneidade**  
-   Os peers podem apresentar capacidades heterogêneas em termos de largura de banda, poder de processamento e tempo de disponibilidade. Apesar disso, todos podem colaborar de acordo com suas possibilidades, reforçando a flexibilidade do modelo.
+    Os peers podem apresentar capacidades heterogêneas em termos de largura de banda, poder de processamento e tempo de disponibilidade. Apesar disso, todos podem colaborar de acordo com suas possibilidades, reforçando a flexibilidade do modelo.
 
 6. **Dinamicidade**  
-   A rede P2P é marcada por intensa variação na participação dos peers (*churn*). Protocolos e aplicações P2P devem, portanto, lidar com a entrada e saída frequente de nós, preservando a consistência e a utilidade da rede.
+    A rede P2P é marcada por intensa variação na participação dos peers (*churn*). Protocolos e aplicações P2P devem, portanto, lidar com a entrada e saída frequente de nós, preservando a consistência e a utilidade da rede.
 
 ### Atores em Uma Redes P2P
 
 No contexto da arquitetura P2P, os atuadores correspondem aos papéis ou funções desempenhadas pelos peers para sustentar o funcionamento da rede:
 
 1. **Peers de Origem e Destino**  
-   Responsáveis pela emissão e recepção final de mensagens ou dados. Em um sistema de chat, por exemplo, representam os usuários que trocam mensagens diretamente.
+    Responsáveis pela emissão e recepção final de mensagens ou dados. Em um sistema de chat, por exemplo, representam os usuários que trocam mensagens diretamente.
 
 2. **Peers de Encaminhamento (*Relay Peers*)**  
-   Fundamentais quando não existe rota direta entre origem e destino, especialmente em cenários com NAT ou firewalls. Esses peers atuam como nós de encaminhamento na camada de aplicação, propagando mensagens até o destino. **Neste trabalho, o papel de relay não é implementado**, focando-se apenas em conexões diretas.
+    Fundamentais quando não existe rota direta entre origem e destino, especialmente em cenários com NAT ou firewalls. Esses peers atuam como nós de encaminhamento na camada de aplicação, propagando mensagens até o destino. **Neste trabalho, o papel de relay não é implementado**, focando-se apenas em conexões diretas.
 
 3. **Peers de Descoberta**  
-   Participam dos mecanismos de identificação e localização de outros nós. No trabalho proposto, **servidor Rendezvous** é o "ponto de encontro" inicial dos peers, responsável por registrar e listar peers ativos. Como os peers entram em saem da rede de forma dinâmica e inexperada, a descoberta contínua é essencial para manter a conectividade.
+    Participam dos mecanismos de identificação e localização de outros nós. No trabalho proposto, **servidor Rendezvous** é o "ponto de encontro" inicial dos peers, responsável por registrar e listar peers ativos. Como os peers entram em saem da rede de forma dinâmica e inexperada, a descoberta contínua é essencial para manter a conectividade.
 
 4. **Peers de Observabilidade**  
-   Monitoram o estado da rede, incluindo métricas como tempo de resposta (RTT), disponibilidade de rotas e falhas de encaminhamento. Essas informações auxiliam na tomada de decisão sobre o roteamento de mensagens.
+    Monitoram o estado da rede, incluindo métricas como tempo de resposta (RTT), disponibilidade de rotas e falhas de encaminhamento. Essas informações auxiliam na tomada de decisão sobre o roteamento de mensagens.
 
 ### Considerações Finais
 
@@ -97,12 +97,12 @@ No contexto deste trabalho de programação, a implementação de um cliente P2P
 
 1. Exercitar conceitos de **arquitetura P2P** e **protocolos de aplicação**;
 2. Implementar um cliente P2P capaz de:
-   - Registrar-se no Rendezvous (`REGISTER` / `UNREGISTER`);
-   - Descobrir peers de forma recorrente e automática (`DISCOVER`);
-   - Estabelecer conexões TCP com peers acessíveis;
-   - Enviar mensagens diretas e de broadcast;
-   - Manter conexões ativas com *keep-alive* (`PING/PONG`);
-   - Fechar conexões corretamente (`BYE/BYE_OK`).
+    - Registrar-se no Rendezvous (`REGISTER` / `UNREGISTER`);
+    - Descobrir peers de forma recorrente e automática (`DISCOVER`);
+    - Estabelecer conexões TCP com peers acessíveis;
+    - Enviar mensagens diretas e de broadcast;
+    - Manter conexões ativas com *keep-alive* (`PING/PONG`);
+    - Fechar conexões corretamente (`BYE/BYE_OK`).
 
 ---
 
@@ -140,32 +140,111 @@ O cliente utiliza o servidor Rendezvous para registro e descoberta de peers.
 > Como plataforma de testes, utilize o servidor público rendezvous disponível em pyp2p.mfcaetano.cc (IP 45.171.101.167) - Porta: 8080.
 
 ### REGISTER
+
+**Request:**
+
 ```json
-{ "type": "REGISTER", "namespace": "UnB", "name": "alice", "port": 7070, "ttl": 7200 }
+{
+   "type": "REGISTER",
+   "namespace": "UnB",
+   "name": "alice",
+   "port": 7070,
+   "ttl": 7200
+}
 ```
+
 **Resposta:**
+
 ```json
-{ "status": "OK", "ttl": 7200, "observed_ip": "203.0.113.7", "observed_port": 45678 }
+{
+   "status": "OK",
+   "ttl": 7200,
+   "observed_ip": "203.0.113.7",
+   "observed_port": 45678
+}
 ```
 
 ### DISCOVER
-```json
-{ "type": "DISCOVER", "namespace": "UnB" }
 
-{ "type": "DISCOVER" }
+**Request:**
+
+```json
+{
+   "type": "DISCOVER",
+   "namespace": "UnB"
+}
 ```
-**Resposta:**
-```json
-{ "status": "OK", "peers": [{"ip": "203.0.113.7", "port": 7070, "name": "alice", "namespace": "UnB"}] }
 
-{ "status": "OK", "peers": [{"ip": "45.171.101.167", "port": 8081, "name": "vm_giga", "namespace": "CIC", "ttl": 7200, "expires_in": 5780, "observed_ip": "45.171.101.167", "observed_port": 35466}, {"ip": "186.235.84.225", "port": 4000, "name": "alice", "namespace": "UnB", "ttl": 3600, "expires_in": 3519, "observed_ip": "186.235.84.225", "observed_port": 54572}] }
+ou
+
+```json
+{
+   "type": "DISCOVER"
+}
+```
+
+**Resposta:**
+
+```json
+{
+   "status": "OK",
+   "peers": [
+      {
+         "ip": "203.0.113.7",
+         "port": 7070,
+         "name": "alice",
+         "namespace": "UnB"
+      }
+   ]
+}
+```
+
+```json
+{
+   "status": "OK",
+   "peers": [
+      {
+         "ip": "45.171.101.167",
+         "port": 8081,
+         "name": "vm_giga",
+         "namespace": "CIC",
+         "ttl": 7200,
+         "expires_in": 5780,
+         "observed_ip": "45.171.101.167",
+         "observed_port": 35466
+      },
+      {
+         "ip": "186.235.84.225",
+         "port": 4000,
+         "name": "alice",
+         "namespace": "UnB",
+         "ttl": 3600,
+         "expires_in": 3519,
+         "observed_ip": "186.235.84.225",
+         "observed_port": 54572
+      }
+   ]
+}
 ```
 
 ### UNREGISTER
+
 ```json
-{ "type": "UNREGISTER", "namespace": "UnB", "name": "alice", "port": 7070 }
+{
+   "type": "UNREGISTER",
+   "namespace": "UnB",
+   "name": "alice",
+   "port": 7070
+}
 ```
-**Resposta:** `{ "status": "OK" }`
+
+**Resposta:**
+
+```json
+{
+   "status": "OK"
+}
+```
 
 O cliente executa automaticamente **refresh de registro periódico** e **descoberta contínua**.
 
@@ -174,67 +253,153 @@ O cliente executa automaticamente **refresh de registro periódico** e **descobe
 ## Protocolo de Comunicação entre Peers
 
 ### HELLO / HELLO_OK
+
 Estabelecem a conexão inicial.
 
 **HELLO:**
+
 ```json
-{ "type": "HELLO", "peer_id": "alice@UnB", "version": "1.0", "features": ["ack", "metrics"], "ttl": 1 }
+{
+   "type": "HELLO",
+   "peer_id": "alice@UnB",
+   "version": "1.0",
+   "features": ["ack", "metrics"],
+   "ttl": 1
+}
 ```
+
 **HELLO_OK:**
+
 ```json
-{ "type": "HELLO_OK", "peer_id": "bob@UnB", "version": "1.0", "features": ["ack", "metrics"], "ttl": 1 }
+{
+   "type": "HELLO_OK",
+   "peer_id": "bob@UnB",
+   "version": "1.0",
+   "features": ["ack", "metrics"],
+   "ttl": 1
+}
 ```
 
 Após o handshake, a conexão é mantida aberta para troca de mensagens.
 
 ### PING / PONG
+
 Mensagens periódicas de keep-alive.
 
 **PING:**
+
 ```json
-{ "type": "PING", "msg_id": "uuid", "timestamp": "2025-10-27T10:00:00Z", "ttl": 1 }
+{
+   "type": "PING",
+   "msg_id": "uuid",
+   "timestamp": "2025-10-27T10:00:00Z",
+   "ttl": 1
+}
 ```
+
 **PONG:**
+
 ```json
-{ "type": "PONG", "msg_id": "uuid", "timestamp": "2025-10-27T10:00:00Z", "ttl": 1 }
+{
+   "type": "PONG",
+   "msg_id": "uuid",
+   "timestamp": "2025-10-27T10:00:00Z",
+   "ttl": 1
+}
 ```
+
 O RTT é calculado e registrado nos logs.
 
 ### SEND / ACK
+
 Mensagens diretas entre dois peers.
 
 **SEND:**
+
 ```json
-{ "type": "SEND", "msg_id": "uuid", "src": "alice@UnB", "dst": "bob@UnB", "payload": "Olá!", "require_ack": true, "ttl": 1 }
+{
+   "type": "SEND",
+   "msg_id": "uuid",
+   "src": "alice@UnB",
+   "dst": "bob@UnB",
+   "payload": "Olá!",
+   "require_ack": true,
+   "ttl": 1
+}
 ```
+
 **ACK:**
+
 ```json
-{ "type": "ACK", "msg_id": "uuid", "timestamp": "2025-10-27T10:00:01Z", "ttl": 1 }
+{
+   "type": "ACK",
+   "msg_id": "uuid",
+   "timestamp": "2025-10-27T10:00:01Z",
+   "ttl": 1
+}
 ```
+
 Mensagens sem ACK após 5s geram aviso de timeout no log.
 
 ### PUB
+
 Permite difusão para todos os peers conectados.
 
 **Namespace-cast:**
+
 ```json
-{ "type": "PUB", "msg_id": "uuid", "src": "alice@UnB", "dst": "#UnB", "payload": "Aviso para todos!", "require_ack": false, "ttl": 1 }
+{
+   "type": "PUB",
+   "msg_id": "uuid",
+   "src": "alice@UnB",
+   "dst": "#UnB",
+   "payload": "Aviso para todos!",
+   "require_ack": false,
+   "ttl": 1
+}
 ```
+
 **Broadcast:**
+
 ```json
-{ "type": "PUB", "msg_id": "uuid", "src": "alice@UnB", "dst": "*", "payload": "Mensagem global", "require_ack": false, "ttl": 1 }
+{
+   "type": "PUB",
+   "msg_id": "uuid",
+   "src": "alice@UnB",
+   "dst": "*",
+   "payload": "Mensagem global",
+   "require_ack": false,
+   "ttl": 1
+}
 ```
 
 ### BYE / BYE_OK
+
 Finalizam a sessão de forma controlada.
 
 **BYE:**
+
 ```json
-{ "type": "BYE", "msg_id": "uuid", "src": "alice@UnB", "dst": "bob@UnB", "reason": "Encerrando sessão", "ttl": 1 }
+{
+   "type": "BYE",
+   "msg_id": "uuid",
+   "src": "alice@UnB",
+   "dst": "bob@UnB",
+   "reason": "Encerrando sessão",
+   "ttl": 1
+}
 ```
+
 **BYE_OK:**
+
 ```json
-{ "type": "BYE_OK", "msg_id": "uuid", "src": "bob@UnB", "dst": "alice@UnB", "ttl": 1 }
+{
+   "type": "BYE_OK",
+   "msg_id": "uuid",
+   "src": "bob@UnB",
+   "dst": "alice@UnB",
+   "ttl": 1
+}
 ```
 
 ---
@@ -254,7 +419,7 @@ Comandos disponíveis:
 
 | Comando | Função |
 |----------|--------|
-| `/peers [* | #namespace]` | Descobrir e listar peers |
+| `/peers [* \| #namespace]` | Descobrir e listar peers |
 | `/msg <peer_id> <mensagem>` | Enviar mensagem direta |
 | `/pub * <mensagem>` | Enviar broadcast global |
 | `/pub #<namespace> <mensagem>` | Enviar mensagem para todos do namespace |
@@ -267,6 +432,8 @@ Comandos disponíveis:
 ---
 
 ## Arquitetura de Módulos
+
+Sugestão de organização do código em módulos:
 
 - **`main.py`** — inicializa aplicação e logging
 - **`p2p_client.py`** — lógica principal (registro, descoberta, reconexão, CLI)
@@ -310,4 +477,3 @@ Comandos disponíveis:
 4. **Reconexão** — peer desconectado e reconectado automaticamente.
 5. **Encerramento** — envio e recepção de BYE/BYE_OK.
 6. **CLI** — execução dos comandos principais (`/msg`, `/pub`, `/rtt`, `/conn`, `/quit`).
-
