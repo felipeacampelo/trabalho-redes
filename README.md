@@ -33,22 +33,27 @@ A comunicação é feita sobre **TCP**. Cada **conexão aceita apenas um comando
 Registra (ou atualiza) um peer no servidor.
 
 **Campos obrigatórios:**
+
 - `type`: `"REGISTER"`
 - `namespace`: string (até 64 caracteres)  
 - `name`: string (até 64 caracteres)  
 - `port`: inteiro (1–65535)  
 
 **Campos opcionais:**
+
 - `ttl`: inteiro em segundos (1–86400). Se omitido, assume **7200 (2h)**.
 
 **Exemplo de requisição:**
+
 ```json
+
 { "type": "REGISTER", "namespace": "UnB", "name": "alice", "port": 4000, "ttl": 3600 }
 ```
 
 **Resposta de sucesso:**
+
 ```json
-{"status": "OK", "ttl": 3600, "observed_ip": "186.235.84.225", "observed_port": 54572}
+{"status": "OK", "ttl": 3600, "ip": "45.171.103.246", "port": 4000}
 ```
 
 **Possíveis erros:**
@@ -73,24 +78,57 @@ Retorna a lista de peers registrados em um namespace.
   - `namespace` inexistente, o servidor retorna uma lista vazia.
 
 **Exemplo de requisição:**
+
 ```json
-{ "type": "DISCOVER", "namespace": "room1" }
+
+{ "type": "DISCOVER", "namespace": "UnB" }
 ```
 
 **Resposta:**
+
 ```json
 {
   "status": "OK",
   "peers": [
     {
-      "ip": "203.0.113.45",
+      "ip": "45.171.103.246",
       "port": 4000,
-      "name": "peerA",
-      "namespace": "room1",
-      "ttl": 60,
-      "expires_in": 42,
-      "observed_ip": "203.0.113.45",
-      "observed_port": 54321
+      "name": "alice",
+      "namespace": "UnB",
+      "ttl": 3600,
+      "expires_in": 3527
+    }
+  ]
+}
+```
+
+** Requisição omitindo `namespace`**
+
+```json
+{ "type": "DISCOVER" }
+```
+
+**Resposta:**
+
+```json
+{
+  "status": "OK",
+  "peers": [
+    {
+      "ip": "45.171.101.167",
+      "port": 8081,
+      "name": "vm_giga",
+      "namespace": "CIC",
+      "ttl": 7200,
+      "expires_in": 5908
+    },
+    {
+      "ip": "45.171.103.246",
+      "port": 4000,
+      "name": "alice",
+      "namespace": "UnB",
+      "ttl": 3600,
+      "expires_in": 3592
     }
   ]
 }
