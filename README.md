@@ -68,10 +68,10 @@ Registra (ou atualiza) um peer no servidor.
 ---
 
 ##### 2. `DISCOVER`
-
-Retorna a lista de peers registrados em um namespace.
+Retorna a lista de peers registrados em um *namespace*. O servidor **apenas responde** às requisições dos *peers* com registros válidos (não expirados). Para maiores informações, consulte a seção [4. Proteção contra abusos](#4-proteção-contra-abusos).
 
 **Campos:**
+
 - `type`: `"DISCOVER"`
 - `namespace`: string (opcional).  
   - Se omitido, retorna todos os peers de todos os namespaces.
@@ -102,7 +102,7 @@ Retorna a lista de peers registrados em um namespace.
 }
 ```
 
-** Requisição omitindo `namespace`**
+**Requisição omitindo `namespace`**
 
 ```json
 { "type": "DISCOVER" }
@@ -137,22 +137,18 @@ Retorna a lista de peers registrados em um namespace.
 **Requisição para `namespace` inexistente**
 ```json
 { "type": "DISCOVER", "namespace": "know-without-study" }
-
-{ "type": "DISCOVER" }
 ```
 
 **Resposta:**
 ```json
 {"status": "OK", "peers": []}
-
-{"status": "OK", "peers": [{"ip": "45.171.101.167", "port": 8081, "name": "vm_giga", "namespace": "CIC", "ttl": 7200, "expires_in": 5780, "observed_ip": "45.171.101.167", "observed_port": 35466}, {"ip": "186.235.84.225", "port": 4000, "name": "alice", "namespace": "UnB", "ttl": 3600, "expires_in": 3519, "observed_ip": "186.235.84.225", "observed_port": 54572}]}
 ```
 
 ---
 
 ##### 3. `UNREGISTER`
 
-Remove peers previamente registrados.
+Remove *peers* previamente registrados. O servidor **apenas responde** às requisições dos *peers* com registros válidos (não expirados). Para maiores informações, consulte a seção [4. Proteção contra abusos](#4-proteção-contra-abusos).
 
 **Campos obrigatórios:**
 - `type`: `"UNREGISTER"`
@@ -173,9 +169,48 @@ Remove peers previamente registrados.
 ```
 
 **Erros possíveis:**
+
+Seguem alguns exemplo possíveis de erros retornados pelo servidor:
+
+- Quando o valor do campo `port` não é um inteiro válido ou está fora do intervalo 1-65535:
+
 ```json
 { "status": "ERROR", "message": "bad_port (abc)" }
 ```
+
+- Quando o valor do campo `namespace` é inválido (> 64 caracteres):
+
+```json
+{ "status": "ERROR", "message": "bad_namespace" }
+```
+
+- Quando o *peer* que fez a requisição não está registrado:
+
+```json
+{ "status": "ERROR", "message": "peer_not_registered" }
+```
+
+- Quando o campo **obrigatório** `namespace` está ausente na requisição:
+
+```json
+{ "status": "ERROR", "message": "namespace_required" }
+```
+
+- Quando o *peer* que fez a requisição não corresponde ao registro (`IP`) ou algum campo informado é divergente ao registrado (`namespace`, `port` ou `name`):
+
+```json
+{ "status": "ERROR", "message": "peer_credentials_do_not_match" }
+```
+> **Dica:** realize o debug do código utilizando o comando **`DISCOVER`** para verificar os dados registrados do *peer*. 
+
+- Quando o *peer* que fez a requisição (`IP`) não está registrado:
+
+```json
+{ "status": "ERROR", "message": "peer_not_registered" }
+```
+
+> **Obs:** Não é possível desregistrar um *peer* que não está registrado.
+
 ---
 
 ##### 4. Proteção contra abusos

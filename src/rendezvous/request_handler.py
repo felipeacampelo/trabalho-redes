@@ -117,9 +117,16 @@ class RequestHandler:
                     log.warning("UNREGISTER invalid (namespace)")
                     return json.dumps({"status": "ERROR", "message": "namespace_required"})
                 
+                if namespace and len(namespace) > 64:
+                    log.warning("UNREGISTER invalid (namespace:%r)", namespace)
+                    return json.dumps({"status": "ERROR", "message": "bad_namespace"})
+                
                 if port is not None:
                     try:
                         port = int(port)
+                        
+                        if not (1 <= port <= 65535):
+                            raise ValueError()
                     except (ValueError, TypeError):
                         log.warning(f"UNREGISTER invalid (port:{port})")
                         return json.dumps({"status": "ERROR", "message": f"bad_port ({port})"})
