@@ -3,10 +3,12 @@ from models import PeerRecord
 from datetime import datetime, timezone
 import logging
 
+from peer_db import PeerDatabase
+
 log = logging.getLogger("Handler")
 
 class RequestHandler:
-    def __init__(self, peer_db):
+    def __init__(self, peer_db : PeerDatabase):
         self.peer_db = peer_db
 
     def handle(self, request, client_ip):
@@ -76,6 +78,11 @@ class RequestHandler:
 
             
         elif cmd == "DISCOVER":
+            
+            if not self.peer_db.is_ip_registered(client_ip):
+                log.info("DISCOVER client should register first: %s", client_ip)
+                return json.dumps({"status": "ERROR", "message": "Request denied: peer not registered."})
+            
             namespace = args.get("namespace")
             peers = self.peer_db.get_peers(namespace)
             now = datetime.now(timezone.utc)
@@ -95,6 +102,10 @@ class RequestHandler:
         
         elif cmd == "UNREGISTER":
             try:
+                if not self.peer_db.is_ip_registered(client_ip):
+                    log.info("UNREGISTER client should register first: %s", client_ip)
+                    return json.dumps({"status": "ERROR", "message": "Request denied: peer not registered."})
+                
                 namespace = args.get("namespace")
                 name = args.get("name")
                 port = args.get("port")

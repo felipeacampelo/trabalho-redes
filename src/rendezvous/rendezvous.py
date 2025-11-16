@@ -57,7 +57,7 @@ class RendezvousServer:
         
         
     def handle_client(self, connection, address):
-        connection.settimeout(1)
+        connection.settimeout(5)
         buf = b""
         line = None
         peer = f"{address[0]}:{address[1]}"

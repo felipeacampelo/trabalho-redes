@@ -88,6 +88,25 @@ class PeerDatabase:
             log.info("Expired %d peer(s) removed", expired)
 
 
+    def is_ip_registered(self, ip: str) -> bool:
+        """
+        Check if a peer with the specified IP is registered.
+
+        This method performs a thread-safe lookup to determine if any peer with the given
+        IP address exists in the peer database.
+        It first performs a sweep operation to remove stale entries before checking.
+        """
+        found = False
+
+        with self._lock:
+            self._sweep()
+            for p in self.peers:
+                if p.ip == ip:
+                    found = True
+                    break
+            self._save_locked()
+
+        return found
     def add_peer(self, peer: PeerRecord):
         """Upsert by (ip, namespace, name) to avoid duplicates."""
         
