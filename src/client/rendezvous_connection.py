@@ -1,0 +1,115 @@
+"""
+Rendezvous server connection handler
+"""
+import socket
+import json
+import logging
+from typing import Optional, List, Dict
+
+logger = logging.getLogger(__name__)
+
+
+class RendezvousConnection:
+    """Handles communication with the Rendezvous server"""
+    
+    def __init__(self, host: str, port: int):
+        self.host = host
+        self.port = port
+        self.max_line_size = 32768
+    
+    def _send_command(self, command: dict) -> Optional[dict]:
+        """Send a command to the Rendezvous server and get response"""
+        try:
+            # Create new connection for each command
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(10)
+            sock.connect((self.host, self.port))
+            
+            # Send command
+            command_json = json.dumps(command) + "\n"
+            sock.sendall(command_json.encode('utf-8'))
+            
+            # Receive response
+            response_data = b""
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                response_data += chunk
+                if b'\n' in response_data:
+                    break
+            
+            sock.close()
+            
+            # Parse response
+            response_str = response_data.decode('utf-8').strip()
+            if response_str:
+                return json.loads(response_str)
+            
+            return None
+            
+        except socket.timeout:
+            logger.error(f"Timeout connecting to Rendezvous server at {self.host}:{self.port}")
+            return None
+        except ConnectionRefusedError:
+            logger.error(f"Connection refused by Rendezvous server at {self.host}:{self.port}")
+            return None
+        except Exception as e:
+            logger.error(f"Error communicating with Rendezvous: {e}")
+            return None
+    
+    def register(self, namespace: str, name: str, port: int, ttl: int = 7200) -> Optional[dict]:
+        """Register peer with Rendezvous server"""
+        command = {
+            "type": "REGISTER",
+            "namespace": namespace,
+            "name": name,
+            "port": port,
+            "ttl": ttl
+        }
+        
+        logger.info(f"Registering {name}@{namespace} on port {port} with TTL {ttl}s")
+        response = self._send_command(command)
+        
+        if response and response.get("status") == "OK":
+            logger.info(f"Successfully registered: {response}")
+            return response
+        else:
+            logger.error(f"Registration failed: {response}")
+            return None
+    
+    def discover(self, namespace: Optional[str] = None) -> List[Dict]:
+        """Discover peers in a namespace (or all if namespace is None)"""
+        command = {"type": "DISCOVER"}
+        if namespace:
+            command["namespace"] = namespace
+        
+        logger.debug(f"Discovering peers in namespace: {namespace or 'all'}")
+        response = self._send_command(command)
+        
+        if response and response.get("status") == "OK":
+            peers = response.get("peers", [])
+            logger.debug(f"Discovered {len(peers)} peers")
+            return peers
+        else:
+            logger.warning(f"Discovery failed: {response}")
+            return []
+    
+    def unregister(self, namespace: str, name: str, port: int) -> bool:
+        """Unregister peer from Rendezvous server"""
+        command = {
+            "type": "UNREGISTER",
+            "namespace": namespace,
+            "name": name,
+            "port": port
+        }
+        
+        logger.info(f"Unregistering {name}@{namespace}")
+        response = self._send_command(command)
+        
+        if response and response.get("status") == "OK":
+            logger.info("Successfully unregistered")
+            return True
+        else:
+            logger.error(f"Unregister failed: {response}")
+            return False

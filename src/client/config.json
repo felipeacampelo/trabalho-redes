@@ -1,0 +1,23 @@
+{
+  "rendezvous": {
+    "host": "pyp2p.mfcaetano.cc",
+    "port": 8080
+  },
+  "peer": {
+    "namespace": "CIC",
+    "name": "peer1",
+    "port": 4000
+  },
+  "connection": {
+    "max_reconnect_attempts": 5,
+    "reconnect_backoff_base": 2,
+    "reconnect_backoff_max": 60,
+    "ping_interval": 30,
+    "ack_timeout": 5,
+    "discovery_interval": 60
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "p2p_client.log"
+  }
+}
