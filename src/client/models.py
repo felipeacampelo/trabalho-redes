@@ -1,5 +1,5 @@
 """
-Data models for P2P Chat Client
+Modelos de dados para o Cliente de Chat P2P
 """
 from dataclasses import dataclass, field
 from typing import Optional, List
@@ -8,7 +8,7 @@ from enum import Enum
 
 
 class PeerStatus(Enum):
-    """Peer connection status"""
+    """Status de conexão do peer"""
     UNKNOWN = "unknown"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -17,7 +17,7 @@ class PeerStatus(Enum):
 
 
 class MessageType(Enum):
-    """Message types for P2P protocol"""
+    """Tipos de mensagem para o protocolo P2P"""
     HELLO = "HELLO"
     HELLO_OK = "HELLO_OK"
     PING = "PING"
@@ -27,11 +27,12 @@ class MessageType(Enum):
     PUB = "PUB"
     BYE = "BYE"
     BYE_OK = "BYE_OK"
+    RELAY = "RELAY"  # Para retransmitir mensagens através de peers intermediários
 
 
 @dataclass
 class PeerInfo:
-    """Information about a peer"""
+    """Informações sobre um peer"""
     peer_id: str
     ip: str
     port: int
@@ -44,13 +45,13 @@ class PeerInfo:
     
     @property
     def avg_rtt(self) -> Optional[float]:
-        """Calculate average RTT"""
+        """Calcula o RTT médio"""
         if not self.rtt_samples:
             return None
         return sum(self.rtt_samples) / len(self.rtt_samples)
     
     def add_rtt_sample(self, rtt: float):
-        """Add RTT sample, keep last 10"""
+        """Adiciona amostra de RTT, mantém as últimas 10"""
         self.rtt_samples.append(rtt)
         if len(self.rtt_samples) > 10:
             self.rtt_samples.pop(0)
@@ -58,7 +59,7 @@ class PeerInfo:
 
 @dataclass
 class Message:
-    """P2P message structure"""
+    """Estrutura de mensagem P2P"""
     msg_type: MessageType
     msg_id: str
     src: Optional[str] = None
@@ -72,7 +73,7 @@ class Message:
     reason: Optional[str] = None
     
     def to_dict(self) -> dict:
-        """Convert message to dictionary for JSON serialization"""
+        """Converte mensagem para dicionário para serialização JSON"""
         data = {"type": self.msg_type.value, "ttl": self.ttl}
         
         if self.msg_id:
@@ -99,7 +100,7 @@ class Message:
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Message':
-        """Create message from dictionary"""
+        """Cria mensagem a partir de dicionário"""
         msg_type = MessageType(data.get("type"))
         return cls(
             msg_type=msg_type,
@@ -118,9 +119,9 @@ class Message:
 
 @dataclass
 class ConnectionInfo:
-    """Information about a connection"""
+    """Informações sobre uma conexão"""
     peer_id: str
-    direction: str  # "inbound" or "outbound"
+    direction: str  # "inbound" (entrada) ou "outbound" (saída)
     connected_at: datetime
     last_ping: Optional[datetime] = None
     last_pong: Optional[datetime] = None

@@ -1,5 +1,5 @@
 """
-Peer table management with reconnection logic
+Gerenciamento da tabela de peers com lógica de reconexão
 """
 import logging
 import threading
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class PeerTable:
     """
-    Manages peer discovery, connection state, and reconnection logic
+    Gerencia descoberta de peers, estado de conexão e lógica de reconexão
     """
     
     def __init__(self, max_reconnect_attempts: int, backoff_base: int, backoff_max: int,
@@ -27,20 +27,20 @@ class PeerTable:
         self.reconnect_thread = None
     
     def start(self):
-        """Start reconnection thread"""
+        """Inicia thread de reconexão"""
         self.running = True
         self.reconnect_thread = threading.Thread(target=self._reconnect_loop, daemon=True)
         self.reconnect_thread.start()
         logger.info("[PeerTable] Started")
     
     def stop(self):
-        """Stop reconnection thread"""
+        """Para thread de reconexão"""
         self.running = False
         if self.reconnect_thread:
             self.reconnect_thread.join(timeout=2)
     
     def update_peers(self, discovered_peers: list, my_peer_id: str):
-        """Update peer table with discovered peers"""
+        """Atualiza tabela de peers com peers descobertos"""
         with self.lock:
             current_peer_ids = set(self.peers.keys())
             discovered_peer_ids = set()
@@ -48,24 +48,24 @@ class PeerTable:
             for peer_data in discovered_peers:
                 peer_id = f"{peer_data['name']}@{peer_data['namespace']}"
                 
-                # Skip self
+                # Ignora a si mesmo
                 if peer_id == my_peer_id:
                     continue
                 
                 discovered_peer_ids.add(peer_id)
                 
                 if peer_id in self.peers:
-                    # Update existing peer
+                    # Atualiza peer existente
                     peer = self.peers[peer_id]
                     peer.ip = peer_data['ip']
                     peer.port = peer_data['port']
                     
-                    # If peer was stale, mark as disconnected to retry
+                    # Se peer estava obsoleto, marca como desconectado para tentar novamente
                     if peer.status == PeerStatus.STALE:
                         peer.status = PeerStatus.DISCONNECTED
                         peer.reconnect_attempts = 0
                 else:
-                    # New peer
+                    # Novo peer
                     peer = PeerInfo(
                         peer_id=peer_id,
                         ip=peer_data['ip'],
@@ -77,7 +77,7 @@ class PeerTable:
                     self.peers[peer_id] = peer
                     logger.info(f"[PeerTable] New peer discovered: {peer_id}")
             
-            # Mark peers that disappeared as stale
+            # Marca peers que desapareceram como obsoletos
             disappeared = current_peer_ids - discovered_peer_ids
             for peer_id in disappeared:
                 if self.peers[peer_id].status != PeerStatus.CONNECTED:
@@ -85,7 +85,7 @@ class PeerTable:
                     logger.info(f"[PeerTable] Peer marked as stale: {peer_id}")
     
     def mark_connected(self, peer_id: str):
-        """Mark peer as connected"""
+        """Marca peer como conectado"""
         with self.lock:
             if peer_id in self.peers:
                 self.peers[peer_id].status = PeerStatus.CONNECTED
@@ -93,24 +93,24 @@ class PeerTable:
                 logger.info(f"[PeerTable] Peer connected: {peer_id}")
     
     def mark_disconnected(self, peer_id: str):
-        """Mark peer as disconnected"""
+        """Marca peer como desconectado"""
         with self.lock:
             if peer_id in self.peers:
                 self.peers[peer_id].status = PeerStatus.DISCONNECTED
                 logger.info(f"[PeerTable] Peer disconnected: {peer_id}")
     
     def get_peer(self, peer_id: str) -> PeerInfo:
-        """Get peer info"""
+        """Obtém informações do peer"""
         with self.lock:
             return self.peers.get(peer_id)
     
     def get_all_peers(self) -> Dict[str, PeerInfo]:
-        """Get all peers"""
+        """Obtém todos os peers"""
         with self.lock:
             return self.peers.copy()
     
     def get_connected_peers(self) -> list:
-        """Get list of connected peer IDs"""
+        """Obtém lista de IDs de peers conectados"""
         with self.lock:
             return [
                 peer_id for peer_id, peer in self.peers.items()
@@ -118,7 +118,7 @@ class PeerTable:
             ]
     
     def get_peers_by_namespace(self, namespace: str) -> list:
-        """Get connected peers in a namespace"""
+        """Obtém peers conectados em um namespace"""
         with self.lock:
             return [
                 peer_id for peer_id, peer in self.peers.items()
@@ -126,7 +126,7 @@ class PeerTable:
             ]
     
     def force_reconnect(self):
-        """Force reconnection attempt for all disconnected peers"""
+        """Força tentativa de reconexão para todos os peers desconectados"""
         with self.lock:
             for peer in self.peers.values():
                 if peer.status == PeerStatus.DISCONNECTED:
@@ -134,7 +134,7 @@ class PeerTable:
         logger.info("[PeerTable] Forced reconnection for all disconnected peers")
     
     def _reconnect_loop(self):
-        """Periodically attempt to reconnect to disconnected peers"""
+        """Tenta periodicamente reconectar a peers desconectados"""
         while self.running:
             try:
                 time.sleep(5)  # Check every 5 seconds
@@ -142,30 +142,30 @@ class PeerTable:
                 with self.lock:
                     for peer_id, peer in list(self.peers.items()):
                         if peer.status == PeerStatus.DISCONNECTED:
-                            # Check if we should attempt reconnection
+                            # Verifica se devemos tentar reconexão
                             if peer.reconnect_attempts < self.max_reconnect_attempts:
-                                # Calculate backoff
+                                # Calcula backoff
                                 backoff = min(
                                     self.backoff_base ** peer.reconnect_attempts,
                                     self.backoff_max
                                 )
                                 
-                                # Simple check: just try to reconnect
-                                # In a real implementation, you'd track last attempt time
+                                # Verificação simples: apenas tenta reconectar
+                                # Em uma implementação real, rastrearia o tempo da última tentativa
                                 logger.info(f"[PeerTable] Attempting to reconnect to {peer_id} "
                                           f"(attempt {peer.reconnect_attempts + 1}/{self.max_reconnect_attempts})")
                                 
                                 peer.status = PeerStatus.CONNECTING
                                 peer.reconnect_attempts += 1
                                 
-                                # Try to connect (this will be handled by parent)
+                                # Tenta conectar (será tratado pelo pai)
                                 success = self.connect_to_peer(peer)
                                 
                                 if not success:
                                     peer.status = PeerStatus.DISCONNECTED
                             
                             elif peer.reconnect_attempts >= self.max_reconnect_attempts:
-                                # Give up
+                                # Desiste
                                 peer.status = PeerStatus.STALE
                                 logger.warning(f"[PeerTable] Giving up on {peer_id} after "
                                              f"{self.max_reconnect_attempts} attempts")

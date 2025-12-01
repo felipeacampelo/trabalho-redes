@@ -1,5 +1,5 @@
 """
-Command-line interface for P2P Chat Client
+Interface de linha de comando para o Cliente de Chat P2P
 """
 import logging
 import threading
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class CLI:
-    """Command-line interface handler"""
+    """Manipulador da interface de linha de comando"""
     
     def __init__(self, 
                  on_peers: Callable[[str], None],
@@ -20,7 +20,8 @@ class CLI:
                  on_rtt: Callable[[], None],
                  on_reconnect: Callable[[], None],
                  on_log: Callable[[str], None],
-                 on_quit: Callable[[], None]):
+                 on_quit: Callable[[], None],
+                 on_relay: Callable[[str, str], None] = None):
         self.on_peers = on_peers
         self.on_msg = on_msg
         self.on_pub = on_pub
@@ -29,27 +30,29 @@ class CLI:
         self.on_reconnect = on_reconnect
         self.on_log = on_log
         self.on_quit = on_quit
+        self.on_relay = on_relay
         self.running = False
         self.input_thread = None
     
     def start(self):
-        """Start CLI input thread"""
+        """Inicia a thread de entrada da CLI"""
         self.running = True
         self.input_thread = threading.Thread(target=self._input_loop, daemon=True)
         self.input_thread.start()
         self.print_help()
     
     def stop(self):
-        """Stop CLI"""
+        """Para a CLI"""
         self.running = False
     
     def print_help(self):
-        """Print available commands"""
+        """Exibe os comandos disponíveis"""
         print("\n" + "="*60)
         print("P2P Chat Client - Available Commands:")
         print("="*60)
         print("/peers [* | #namespace]  - Discover and list peers")
-        print("/msg <peer_id> <message> - Send direct message")
+        print("/msg <peer_id> <message> - Send direct message (auto-relay if needed)")
+        print("/relay <peer_id> <msg>   - Force send via relay")
         print("/pub * <message>         - Broadcast to all peers")
         print("/pub #<namespace> <msg>  - Send to namespace")
         print("/conn                    - Show active connections")
@@ -61,7 +64,7 @@ class CLI:
         print("="*60 + "\n")
     
     def _input_loop(self):
-        """Read and process user input"""
+        """Lê e processa entrada do usuário"""
         while self.running:
             try:
                 line = input()
@@ -83,7 +86,7 @@ class CLI:
                 logger.error(f"Error processing input: {e}")
     
     def _process_command(self, line: str):
-        """Process a command"""
+        """Processa um comando"""
         parts = line.split(None, 1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
@@ -134,6 +137,22 @@ class CLI:
             
             elif cmd == "/reconnect":
                 self.on_reconnect()
+            
+            elif cmd == "/relay":
+                if not args:
+                    print("Usage: /relay <peer_id> <message>")
+                    return
+                
+                parts = args.split(None, 1)
+                if len(parts) < 2:
+                    print("Usage: /relay <peer_id> <message>")
+                    return
+                
+                peer_id, message = parts
+                if self.on_relay:
+                    self.on_relay(peer_id, message)
+                else:
+                    print("Relay not available")
             
             elif cmd == "/log":
                 if not args:

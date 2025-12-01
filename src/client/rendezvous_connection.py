@@ -1,5 +1,5 @@
 """
-Rendezvous server connection handler
+Manipulador de conexão com o servidor Rendezvous
 """
 import socket
 import json
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class RendezvousConnection:
-    """Handles communication with the Rendezvous server"""
+    """Gerencia comunicação com o servidor Rendezvous"""
     
     def __init__(self, host: str, port: int):
         self.host = host
@@ -18,18 +18,18 @@ class RendezvousConnection:
         self.max_line_size = 32768
     
     def _send_command(self, command: dict) -> Optional[dict]:
-        """Send a command to the Rendezvous server and get response"""
+        """Envia um comando para o servidor Rendezvous e obtém resposta"""
         try:
-            # Create new connection for each command
+            # Cria nova conexão para cada comando
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(10)
             sock.connect((self.host, self.port))
             
-            # Send command
+            # Envia comando
             command_json = json.dumps(command) + "\n"
             sock.sendall(command_json.encode('utf-8'))
             
-            # Receive response
+            # Recebe resposta
             response_data = b""
             while True:
                 chunk = sock.recv(4096)
@@ -41,7 +41,7 @@ class RendezvousConnection:
             
             sock.close()
             
-            # Parse response
+            # Processa resposta
             response_str = response_data.decode('utf-8').strip()
             if response_str:
                 return json.loads(response_str)
@@ -59,7 +59,7 @@ class RendezvousConnection:
             return None
     
     def register(self, namespace: str, name: str, port: int, ttl: int = 7200) -> Optional[dict]:
-        """Register peer with Rendezvous server"""
+        """Registra peer no servidor Rendezvous"""
         command = {
             "type": "REGISTER",
             "namespace": namespace,
@@ -79,7 +79,7 @@ class RendezvousConnection:
             return None
     
     def discover(self, namespace: Optional[str] = None) -> List[Dict]:
-        """Discover peers in a namespace (or all if namespace is None)"""
+        """Descobre peers em um namespace (ou todos se namespace for None)"""
         command = {"type": "DISCOVER"}
         if namespace:
             command["namespace"] = namespace
@@ -96,7 +96,7 @@ class RendezvousConnection:
             return []
     
     def unregister(self, namespace: str, name: str, port: int) -> bool:
-        """Unregister peer from Rendezvous server"""
+        """Remove registro do peer no servidor Rendezvous"""
         command = {
             "type": "UNREGISTER",
             "namespace": namespace,

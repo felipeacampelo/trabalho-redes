@@ -1,5 +1,5 @@
 """
-Main P2P Chat Client
+Cliente Principal de Chat P2P
 """
 import logging
 import socket
@@ -22,23 +22,24 @@ logger = logging.getLogger(__name__)
 
 
 class P2PClient:
-    """Main P2P Chat Client"""
+    """Cliente Principal de Chat P2P"""
     
     def __init__(self, config: dict):
         self.config = config
         
-        # Identity
+        # Identidade
         self.namespace = config['peer']['namespace']
         self.name = config['peer']['name']
         self.port = config['peer']['port']
         self.peer_id = f"{self.name}@{self.namespace}"
         
-        # State
+        # Estado
         self.state = PeerState()
         self.connections: Dict[str, PeerConnection] = {}
         self.conn_lock = threading.RLock()
+        self.connecting_peers: set = set()  # Rastreia peers em processo de conexão
         
-        # Components
+        # Componentes
         self.rendezvous = RendezvousConnection(
             config['rendezvous']['host'],
             config['rendezvous']['port']
@@ -78,115 +79,143 @@ class P2PClient:
             on_rtt=self._cmd_rtt,
             on_reconnect=self._cmd_reconnect,
             on_log=self._cmd_log,
-            on_quit=self._cmd_quit
+            on_quit=self._cmd_quit,
+            on_relay=self._cmd_relay
         )
         
-        # Control
+        # Controle
         self.running = False
+        self.stop_event = threading.Event()  # Evento para interromper sleeps
         self.discovery_thread = None
         self.ping_thread = None
         self.discovery_interval = config['connection']['discovery_interval']
     
     def start(self):
-        """Start the P2P client"""
+        """Inicia o cliente P2P"""
         logger.info(f"Starting P2P Client: {self.peer_id}")
         
-        # Register with Rendezvous
+        # Registra no Rendezvous
         result = self.rendezvous.register(self.namespace, self.name, self.port)
         if not result:
             logger.error("Failed to register with Rendezvous server")
             return False
         
+        # Armazena nosso IP público para detecção de peer local
+        self.my_public_ip = result.get('ip')
         logger.info(f"Registered with Rendezvous: {result}")
         
-        # Start peer server
+        # Inicia servidor de peers
         if not self.peer_server.start():
             logger.error("Failed to start peer server")
             return False
         
-        # Start components
+        # Inicia componentes
         self.message_router.start()
         self.keep_alive.start()
         self.peer_table.start()
         
-        # Start discovery
+        # Inicia descoberta
         self.running = True
         self.discovery_thread = threading.Thread(target=self._discovery_loop, daemon=True)
         self.discovery_thread.start()
         
-        # Start periodic ping
+        # Inicia ping periódico
         self.ping_thread = threading.Thread(target=self._ping_loop, daemon=True)
         self.ping_thread.start()
         
-        # Start CLI
+        # Inicia CLI
         self.cli.start()
         
         logger.info("P2P Client started successfully")
         return True
     
     def stop(self):
-        """Stop the P2P client"""
+        """Para o cliente P2P"""
         logger.info("Stopping P2P Client...")
         
+        # Para todas as threads em segundo plano PRIMEIRO
         self.running = False
+        self.stop_event.set()  # Sinaliza para threads pararem imediatamente
         self.cli.stop()
         
-        # Send BYE to all connected peers
+        # Para todos os componentes que podem interferir no desligamento
+        self.peer_table.stop()
+        self.keep_alive.stop()
+        self.message_router.stop()
+        self.peer_server.stop()  # Para de aceitar novas conexões
+        
+        # Aguarda threads terminarem
+        if self.discovery_thread and self.discovery_thread.is_alive():
+            self.discovery_thread.join(timeout=2)
+        if self.ping_thread and self.ping_thread.is_alive():
+            self.ping_thread.join(timeout=2)
+        
+        # Agora envia BYE para todos os peers conectados
         with self.conn_lock:
             for peer_id in list(self.connections.keys()):
                 self._send_bye(peer_id)
         
-        # Stop components
-        self.peer_table.stop()
-        self.keep_alive.stop()
-        self.message_router.stop()
-        self.peer_server.stop()
+        # Dá tempo para peers responderem com BYE_OK
+        time.sleep(0.5)
         
-        # Close all connections
+        # Fecha todas as conexões
         with self.conn_lock:
             for conn in self.connections.values():
                 conn.stop()
             self.connections.clear()
         
-        # Unregister from Rendezvous
+        # Remove registro do Rendezvous
         self.rendezvous.unregister(self.namespace, self.name, self.port)
         
         logger.info("P2P Client stopped")
     
     def _discovery_loop(self):
-        """Periodically discover peers"""
-        # Initial discovery
+        """Descobre peers periodicamente"""
+        # Descoberta inicial
         self._discover_peers()
         
         while self.running:
             try:
-                time.sleep(self.discovery_interval)
+                # Usa wait() em vez de sleep() para poder ser interrompido
+                if self.stop_event.wait(timeout=self.discovery_interval):
+                    break  # Evento sinalizado, sair do loop
+                if not self.running:
+                    break
                 self._discover_peers()
             except Exception as e:
                 logger.error(f"Error in discovery loop: {e}")
     
     def _discover_peers(self):
-        """Discover peers from Rendezvous"""
+        """Descobre peers do Rendezvous"""
+        if not self.running:
+            return
+            
         logger.info("[Discovery] Discovering peers...")
         peers = self.rendezvous.discover()
         
-        if peers:
+        if peers and self.running:
             logger.info(f"[Discovery] Found {len(peers)} peers")
             self.peer_table.update_peers(peers, self.peer_id)
             
-            # Try to connect to disconnected peers
+            # Tenta conectar a peers desconectados (ignora se já está conectando)
             for peer_data in peers:
                 peer_id = f"{peer_data['name']}@{peer_data['namespace']}"
                 if peer_id != self.peer_id:
                     peer = self.peer_table.get_peer(peer_id)
                     if peer and peer.status == PeerStatus.DISCONNECTED:
-                        self._connect_to_peer(peer)
+                        peer.status = PeerStatus.CONNECTING
+                        if not self._connect_to_peer(peer):
+                            peer.status = PeerStatus.DISCONNECTED
     
     def _ping_loop(self):
-        """Periodically send PINGs"""
+        """Envia PINGs periodicamente"""
         while self.running:
             try:
-                time.sleep(self.keep_alive.ping_interval)
+                # Usa wait() em vez de sleep() para poder ser interrompido
+                if self.stop_event.wait(timeout=self.keep_alive.ping_interval):
+                    break  # Evento sinalizado, sair do loop
+                if not self.running:
+                    break
                 
                 with self.conn_lock:
                     for peer_id in list(self.connections.keys()):
@@ -196,20 +225,30 @@ class P2PClient:
                 logger.error(f"Error in ping loop: {e}")
     
     def _connect_to_peer(self, peer: PeerInfo) -> bool:
-        """Establish outbound connection to a peer"""
+        """Estabelece conexão de saída para um peer"""
         with self.conn_lock:
             if peer.peer_id in self.connections:
                 logger.debug(f"Already connected to {peer.peer_id}")
                 return True
+            if peer.peer_id in self.connecting_peers:
+                logger.debug(f"Already connecting to {peer.peer_id}")
+                return False
+            self.connecting_peers.add(peer.peer_id)
         
         try:
-            logger.info(f"Connecting to {peer.peer_id} at {peer.ip}:{peer.port}")
+            # Detecta se peer está na mesma máquina (mesmo IP público)
+            target_ip = peer.ip
+            if hasattr(self, 'my_public_ip') and peer.ip == self.my_public_ip:
+                target_ip = '127.0.0.1'
+                logger.info(f"Detected local peer {peer.peer_id}, using localhost")
+            
+            logger.info(f"Connecting to {peer.peer_id} at {target_ip}:{peer.port}")
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(10)
-            sock.connect((peer.ip, peer.port))
+            sock.connect((target_ip, peer.port))
             
-            # Send HELLO
+            # Envia HELLO
             hello = Message(
                 msg_type=MessageType.HELLO,
                 msg_id=str(uuid.uuid4()),
@@ -222,7 +261,7 @@ class P2PClient:
             import json
             sock.sendall((json.dumps(hello_json) + "\n").encode('utf-8'))
             
-            # Wait for HELLO_OK
+            # Aguarda HELLO_OK
             data = b""
             while b'\n' not in data:
                 chunk = sock.recv(4096)
@@ -244,7 +283,7 @@ class P2PClient:
             
             logger.info(f"Connected to {peer.peer_id} (outbound)")
             
-            # Create connection
+            # Cria conexão
             conn = PeerConnection(
                 peer.peer_id,
                 sock,
@@ -270,9 +309,12 @@ class P2PClient:
         except Exception as e:
             logger.error(f"Failed to connect to {peer.peer_id}: {e}")
             return False
+        finally:
+            with self.conn_lock:
+                self.connecting_peers.discard(peer.peer_id)
     
     def _on_inbound_connection(self, peer_id: str, sock: socket.socket):
-        """Handle inbound connection"""
+        """Trata conexão de entrada"""
         with self.conn_lock:
             if peer_id in self.connections:
                 logger.warning(f"Already have connection with {peer_id}, closing new inbound")
@@ -296,11 +338,11 @@ class P2PClient:
                 connected_at=datetime.now()
             ))
             
-            # Update peer table
+            # Atualiza tabela de peers
             namespace, name = peer_id.split('@')
             peer_info = self.peer_table.get_peer(peer_id)
             if not peer_info:
-                # We don't know about this peer yet, add it
+                # Ainda não conhecemos este peer, adiciona
                 peer_info = PeerInfo(
                     peer_id=peer_id,
                     ip="unknown",
@@ -314,7 +356,7 @@ class P2PClient:
                 self.peer_table.mark_connected(peer_id)
     
     def _on_disconnect(self, peer_id: str):
-        """Handle peer disconnection"""
+        """Trata desconexão de peer"""
         logger.info(f"Peer disconnected: {peer_id}")
         
         with self.conn_lock:
@@ -326,11 +368,11 @@ class P2PClient:
         self.message_router.clear_peer(peer_id)
     
     def _on_message(self, peer_id: str, message: Message):
-        """Handle incoming message from peer"""
+        """Trata mensagem recebida de peer"""
         msg_type = message.msg_type
         
         if msg_type == MessageType.PING:
-            # Respond with PONG
+            # Responde com PONG
             pong = Message(
                 msg_type=MessageType.PONG,
                 msg_id=message.msg_id,
@@ -339,29 +381,29 @@ class P2PClient:
             self._send_message_to_peer(peer_id, pong)
         
         elif msg_type == MessageType.PONG:
-            # Handle PONG
+            # Trata PONG
             self.keep_alive.handle_pong(peer_id, message.msg_id, self.state.update_peer_rtt)
         
         elif msg_type == MessageType.SEND:
-            # Direct message
+            # Mensagem direta
             print(f"\n[{peer_id}] {message.payload}")
             
             if message.require_ack:
                 self.message_router.send_ack(peer_id, message.msg_id)
         
         elif msg_type == MessageType.PUB:
-            # Published message
+            # Mensagem publicada
             print(f"\n[{peer_id} -> {message.dst}] {message.payload}")
         
         elif msg_type == MessageType.ACK:
-            # ACK for sent message
+            # ACK para mensagem enviada
             self.message_router.handle_ack(peer_id, message.msg_id)
         
         elif msg_type == MessageType.BYE:
-            # Peer is leaving
+            # Peer está saindo
             logger.info(f"Received BYE from {peer_id}: {message.reason}")
             
-            # Send BYE_OK
+            # Envia BYE_OK
             bye_ok = Message(
                 msg_type=MessageType.BYE_OK,
                 msg_id=message.msg_id,
@@ -370,18 +412,27 @@ class P2PClient:
             )
             self._send_message_to_peer(peer_id, bye_ok)
             
-            # Close connection
+            # Fecha conexão
             with self.conn_lock:
                 conn = self.connections.get(peer_id)
                 if conn:
                     conn.stop()
         
         elif msg_type == MessageType.BYE_OK:
-            # Peer acknowledged our BYE
+            # Peer confirmou nosso BYE
             logger.info(f"Received BYE_OK from {peer_id}")
+        
+        elif msg_type == MessageType.RELAY:
+            # Mensagem de relay - para nós ou para encaminhar
+            if message.dst == self.peer_id:
+                # Mensagem é para nós - exibe
+                print(f"\n[RELAY from {message.src}] {message.payload}")
+            else:
+                # Encaminha a mensagem de relay
+                self.message_router.handle_relay(peer_id, message)
     
     def _send_message_to_peer(self, peer_id: str, message: Message) -> bool:
-        """Send message to a specific peer"""
+        """Envia mensagem para um peer específico"""
         with self.conn_lock:
             conn = self.connections.get(peer_id)
             if conn:
@@ -391,7 +442,7 @@ class P2PClient:
                 return False
     
     def _send_bye(self, peer_id: str):
-        """Send BYE to a peer"""
+        """Envia BYE para um peer"""
         bye = Message(
             msg_type=MessageType.BYE,
             msg_id=str(uuid.uuid4()),
@@ -402,22 +453,22 @@ class P2PClient:
         self._send_message_to_peer(peer_id, bye)
     
     def _get_connected_peer_ids(self) -> list:
-        """Get list of connected peer IDs"""
+        """Obtém lista de IDs de peers conectados"""
         with self.conn_lock:
             return list(self.connections.keys())
     
     def _get_peers_by_namespace(self, namespace: str) -> list:
-        """Get connected peers in a namespace"""
+        """Obtém peers conectados em um namespace"""
         with self.conn_lock:
             return [
                 peer_id for peer_id in self.connections.keys()
                 if peer_id.endswith(f"@{namespace}")
             ]
     
-    # CLI Command Handlers
+    # Manipuladores de Comandos CLI
     
     def _cmd_peers(self, scope: str):
-        """Handle /peers command"""
+        """Trata comando /peers"""
         if scope == "*":
             peers = self.rendezvous.discover()
         elif scope.startswith("#"):
@@ -431,6 +482,13 @@ class P2PClient:
             print("No peers found")
             return
         
+        # Filtra a si mesmo
+        peers = [p for p in peers if f"{p['name']}@{p['namespace']}" != self.peer_id]
+        
+        if not peers:
+            print("No other peers found")
+            return
+        
         print(f"\nDiscovered {len(peers)} peer(s):")
         print("-" * 60)
         for peer in peers:
@@ -440,20 +498,32 @@ class P2PClient:
         print("-" * 60)
     
     def _cmd_msg(self, peer_id: str, message: str):
-        """Handle /msg command"""
-        if peer_id not in self.connections:
-            print(f"Not connected to {peer_id}")
-            return
-        
-        self.message_router.send_direct(peer_id, message)
+        """Trata comando /msg"""
+        if peer_id in self.connections:
+            # Conexão direta disponível
+            self.message_router.send_direct(peer_id, message)
+        else:
+            # Tenta relay através de outro peer
+            print(f"No direct connection to {peer_id}, trying relay...")
+            if self.message_router.send_via_relay(peer_id, message):
+                print(f"Message sent via relay to {peer_id}")
+            else:
+                print(f"Failed to send message to {peer_id} - no route available")
     
     def _cmd_pub(self, scope: str, message: str):
-        """Handle /pub command"""
+        """Trata comando /pub"""
         count = self.message_router.publish(scope, message)
         print(f"Published to {count} peer(s)")
     
+    def _cmd_relay(self, peer_id: str, message: str):
+        """Trata comando /relay - força envio via relay"""
+        if self.message_router.send_via_relay(peer_id, message):
+            print(f"Message sent via relay to {peer_id}")
+        else:
+            print(f"Failed to relay message to {peer_id} - no relay peer available")
+    
     def _cmd_conn(self):
-        """Handle /conn command"""
+        """Trata comando /conn"""
         connections = self.state.get_all_connections()
         
         if not connections:
@@ -468,7 +538,7 @@ class P2PClient:
         print("-" * 60)
     
     def _cmd_rtt(self):
-        """Handle /rtt command"""
+        """Trata comando /rtt"""
         peers = self.peer_table.get_all_peers()
         
         print("\nRTT Statistics:")
@@ -479,12 +549,12 @@ class P2PClient:
         print("-" * 60)
     
     def _cmd_reconnect(self):
-        """Handle /reconnect command"""
+        """Trata comando /reconnect"""
         self.peer_table.force_reconnect()
         print("Forced reconnection for all disconnected peers")
     
     def _cmd_log(self, level: str):
-        """Handle /log command"""
+        """Trata comando /log"""
         try:
             logging.getLogger().setLevel(level)
             print(f"Log level set to {level}")
@@ -492,7 +562,7 @@ class P2PClient:
             print(f"Invalid log level: {level}")
     
     def _cmd_quit(self):
-        """Handle /quit command"""
+        """Trata comando /quit"""
         print("Shutting down...")
         self.stop()
         import sys

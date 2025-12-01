@@ -1,5 +1,5 @@
 """
-Peer-to-peer connection handler
+Manipulador de conexão peer-to-peer
 """
 import socket
 import json
@@ -14,14 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class PeerConnection:
-    """Handles a single peer-to-peer TCP connection"""
+    """Gerencia uma única conexão TCP peer-to-peer"""
     
     def __init__(self, peer_id: str, sock: socket.socket, direction: str, 
                  on_message: Callable[[str, Message], None],
                  on_disconnect: Callable[[str], None]):
         self.peer_id = peer_id
         self.sock = sock
-        self.direction = direction  # "inbound" or "outbound"
+        self.direction = direction  # "inbound" (entrada) ou "outbound" (saída)
         self.on_message = on_message
         self.on_disconnect = on_disconnect
         self.running = False
@@ -30,13 +30,13 @@ class PeerConnection:
         self.send_lock = threading.Lock()
     
     def start(self):
-        """Start receiving messages"""
+        """Inicia recebimento de mensagens"""
         self.running = True
         self.recv_thread = threading.Thread(target=self._receive_loop, daemon=True)
         self.recv_thread.start()
     
     def stop(self):
-        """Stop connection"""
+        """Para a conexão"""
         self.running = False
         try:
             self.sock.close()
@@ -44,7 +44,7 @@ class PeerConnection:
             pass
     
     def send_message(self, message: Message) -> bool:
-        """Send a message to the peer"""
+        """Envia uma mensagem para o peer"""
         try:
             with self.send_lock:
                 msg_json = json.dumps(message.to_dict()) + "\n"
@@ -62,7 +62,7 @@ class PeerConnection:
             return False
     
     def _receive_loop(self):
-        """Receive messages from peer"""
+        """Recebe mensagens do peer"""
         buffer = b""
         
         try:
@@ -75,7 +75,7 @@ class PeerConnection:
                     
                     buffer += chunk
                     
-                    # Process complete lines
+                    # Processa linhas completas
                     while b'\n' in buffer:
                         line, buffer = buffer.split(b'\n', 1)
                         
@@ -107,7 +107,7 @@ class PeerConnection:
 
 
 class PeerServer:
-    """Listens for incoming peer connections"""
+    """Escuta conexões de entrada de peers"""
     
     def __init__(self, port: int, peer_id: str,
                  on_connection: Callable[[str, socket.socket], None]):
@@ -119,7 +119,7 @@ class PeerServer:
         self.accept_thread = None
     
     def start(self):
-        """Start listening for connections"""
+        """Inicia escuta de conexões"""
         try:
             self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -138,7 +138,7 @@ class PeerServer:
             return False
     
     def stop(self):
-        """Stop server"""
+        """Para o servidor"""
         self.running = False
         if self.server_sock:
             try:
@@ -147,13 +147,13 @@ class PeerServer:
                 pass
     
     def _accept_loop(self):
-        """Accept incoming connections"""
+        """Aceita conexões de entrada"""
         while self.running:
             try:
                 client_sock, addr = self.server_sock.accept()
                 logger.info(f"[PeerServer] Incoming connection from {addr}")
                 
-                # Handle in separate thread
+                # Trata em thread separada
                 threading.Thread(
                     target=self._handle_inbound,
                     args=(client_sock, addr),
@@ -167,11 +167,11 @@ class PeerServer:
                     logger.error(f"Error accepting connection: {e}")
     
     def _handle_inbound(self, sock: socket.socket, addr):
-        """Handle inbound connection handshake"""
+        """Trata handshake de conexão de entrada"""
         try:
             sock.settimeout(10)
             
-            # Wait for HELLO
+            # Aguarda HELLO
             data = b""
             while b'\n' not in data:
                 chunk = sock.recv(4096)
@@ -193,7 +193,7 @@ class PeerServer:
             remote_peer_id = hello_msg.src
             logger.info(f"[PeerServer] HELLO from {remote_peer_id}")
             
-            # Send HELLO_OK
+            # Envia HELLO_OK
             hello_ok = Message(
                 msg_type=MessageType.HELLO_OK,
                 msg_id=str(uuid.uuid4()),
@@ -207,7 +207,7 @@ class PeerServer:
             
             logger.info(f"[PeerServer] Inbound connected: {remote_peer_id}")
             
-            # Notify parent
+            # Notifica o pai
             self.on_connection(remote_peer_id, sock)
             
         except Exception as e:

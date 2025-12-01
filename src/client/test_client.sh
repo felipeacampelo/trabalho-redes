@@ -5,14 +5,14 @@ echo "Starting P2P Chat Client Test"
 echo "=============================="
 echo ""
 echo "This script will launch 3 clients in separate terminals:"
-echo "  - alice@CIC on port 4001"
-echo "  - bob@CIC on port 4002"
-echo "  - charlie@CIC on port 4003"
+echo "  - felipe@CIC on port 4001"
+echo "  - joao@CIC on port 4002"
+echo "  - teste@CIC on port 4003"
 echo ""
 echo "Press Enter to continue..."
 read
 
-# Check if we're on macOS or Linux
+# Check if we're on macOS or Linux  
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
     osascript -e 'tell app "Terminal" to do script "cd \"'$(pwd)'\" && python3 main.py --name alice --port 4001"'

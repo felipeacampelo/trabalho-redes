@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-P2P Chat Client - Main Entry Point
+Cliente de Chat P2P - Ponto de Entrada Principal
 """
 import sys
 import json
@@ -12,27 +12,27 @@ from p2p_client import P2PClient
 
 
 def setup_logging(config: dict):
-    """Setup logging configuration"""
+    """Configura o sistema de logging"""
     log_level = config.get('logging', {}).get('level', 'INFO')
     log_file = config.get('logging', {}).get('file')
     
-    # Create formatter
+    # Cria formatador
     formatter = logging.Formatter(
         '%(asctime)s [%(name)s] %(levelname)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # Setup root logger
+    # Configura logger raiz
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
     
-    # Console handler
+    # Handler de console
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     
-    # File handler (if configured)
+    # Handler de arquivo (se configurado)
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
@@ -41,7 +41,7 @@ def setup_logging(config: dict):
 
 
 def load_config(config_path: str) -> dict:
-    """Load configuration from JSON file"""
+    """Carrega configuração de arquivo JSON"""
     try:
         with open(config_path, 'r') as f:
             return json.load(f)
@@ -54,7 +54,7 @@ def load_config(config_path: str) -> dict:
 
 
 def main():
-    """Main entry point"""
+    """Ponto de entrada principal"""
     parser = argparse.ArgumentParser(description='P2P Chat Client')
     parser.add_argument(
         '--config',
@@ -74,13 +74,22 @@ def main():
         type=int,
         help='Override port from config'
     )
+    parser.add_argument(
+        '--rdv-host',
+        help='Override rendezvous server host'
+    )
+    parser.add_argument(
+        '--rdv-port',
+        type=int,
+        help='Override rendezvous server port'
+    )
     
     args = parser.parse_args()
     
-    # Load configuration
+    # Carrega configuração
     config = load_config(args.config)
     
-    # Override with command-line arguments
+    # Sobrescreve com argumentos de linha de comando
     if args.namespace:
         config['peer']['namespace'] = args.namespace
     if args.name:
@@ -88,7 +97,7 @@ def main():
     if args.port:
         config['peer']['port'] = args.port
     
-    # Setup logging
+    # Configura logging
     setup_logging(config)
     
     logger = logging.getLogger(__name__)
@@ -100,7 +109,7 @@ def main():
     logger.info(f"Rendezvous: {config['rendezvous']['host']}:{config['rendezvous']['port']}")
     logger.info("="*60)
     
-    # Create and start client
+    # Cria e inicia cliente
     client = P2PClient(config)
     
     try:
@@ -108,7 +117,7 @@ def main():
             logger.error("Failed to start P2P client")
             sys.exit(1)
         
-        # Keep main thread alive
+        # Mantém thread principal viva
         while True:
             import time
             time.sleep(1)

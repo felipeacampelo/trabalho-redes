@@ -1,5 +1,5 @@
 """
-State management for P2P client
+Gerenciamento de estado para o cliente P2P
 """
 import threading
 from typing import Dict, Optional
@@ -8,7 +8,7 @@ from datetime import datetime
 
 
 class PeerState:
-    """Thread-safe state management for peers"""
+    """Gerenciamento de estado thread-safe para peers"""
     
     def __init__(self):
         self._peers: Dict[str, PeerInfo] = {}
@@ -16,27 +16,27 @@ class PeerState:
         self._lock = threading.RLock()
     
     def add_peer(self, peer: PeerInfo):
-        """Add or update peer information"""
+        """Adiciona ou atualiza informações do peer"""
         with self._lock:
             self._peers[peer.peer_id] = peer
     
     def get_peer(self, peer_id: str) -> Optional[PeerInfo]:
-        """Get peer information"""
+        """Obtém informações do peer"""
         with self._lock:
             return self._peers.get(peer_id)
     
     def remove_peer(self, peer_id: str):
-        """Remove peer from state"""
+        """Remove peer do estado"""
         with self._lock:
             self._peers.pop(peer_id, None)
     
     def get_all_peers(self) -> Dict[str, PeerInfo]:
-        """Get all peers"""
+        """Obtém todos os peers"""
         with self._lock:
             return self._peers.copy()
     
     def get_peers_by_namespace(self, namespace: str) -> Dict[str, PeerInfo]:
-        """Get all peers in a namespace"""
+        """Obtém todos os peers em um namespace"""
         with self._lock:
             return {
                 peer_id: peer 
@@ -45,27 +45,27 @@ class PeerState:
             }
     
     def add_connection(self, conn: ConnectionInfo):
-        """Add connection information"""
+        """Adiciona informações de conexão"""
         with self._lock:
             self._connections[conn.peer_id] = conn
     
     def get_connection(self, peer_id: str) -> Optional[ConnectionInfo]:
-        """Get connection information"""
+        """Obtém informações de conexão"""
         with self._lock:
             return self._connections.get(peer_id)
     
     def remove_connection(self, peer_id: str):
-        """Remove connection"""
+        """Remove conexão"""
         with self._lock:
             self._connections.pop(peer_id, None)
     
     def get_all_connections(self) -> Dict[str, ConnectionInfo]:
-        """Get all connections"""
+        """Obtém todas as conexões"""
         with self._lock:
             return self._connections.copy()
     
     def update_peer_rtt(self, peer_id: str, rtt: float):
-        """Update peer RTT"""
+        """Atualiza RTT do peer"""
         with self._lock:
             peer = self._peers.get(peer_id)
             if peer:
@@ -73,7 +73,7 @@ class PeerState:
                 peer.last_seen = datetime.now()
     
     def clear(self):
-        """Clear all state"""
+        """Limpa todo o estado"""
         with self._lock:
             self._peers.clear()
             self._connections.clear()

@@ -1,5 +1,5 @@
 """
-Keep-alive mechanism for peer connections
+Mecanismo de keep-alive para conexões de peers
 """
 import threading
 import time
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class KeepAlive:
-    """Manages PING/PONG keep-alive for all peer connections"""
+    """Gerencia keep-alive PING/PONG para todas as conexões de peers"""
     
     def __init__(self, ping_interval: int, send_message: Callable[[str, Message], bool]):
         self.ping_interval = ping_interval
@@ -24,20 +24,20 @@ class KeepAlive:
         self.lock = threading.Lock()
     
     def start(self):
-        """Start keep-alive thread"""
+        """Inicia a thread de keep-alive"""
         self.running = True
         self.thread = threading.Thread(target=self._keep_alive_loop, daemon=True)
         self.thread.start()
         logger.info("[KeepAlive] Started")
     
     def stop(self):
-        """Stop keep-alive thread"""
+        """Para a thread de keep-alive"""
         self.running = False
         if self.thread:
             self.thread.join(timeout=2)
     
     def handle_pong(self, peer_id: str, msg_id: str, on_rtt: Callable[[str, float], None]):
-        """Handle PONG response and calculate RTT"""
+        """Trata resposta PONG e calcula RTT"""
         with self.lock:
             if peer_id in self.pending_pings and msg_id in self.pending_pings[peer_id]:
                 sent_time = self.pending_pings[peer_id][msg_id]
@@ -48,25 +48,25 @@ class KeepAlive:
                 on_rtt(peer_id, rtt)
     
     def _keep_alive_loop(self):
-        """Send periodic PINGs to all connected peers"""
+        """Envia PINGs periódicos para todos os peers conectados"""
         while self.running:
             try:
                 time.sleep(self.ping_interval)
                 
-                # Get list of peers to ping (this should be provided by parent)
-                # For now, we'll ping all peers with pending connections
+                # Obtém lista de peers para pingar (deve ser fornecida pelo pai)
+                # Por enquanto, pingamos todos os peers com conexões pendentes
                 self._send_pings()
                 
             except Exception as e:
                 logger.error(f"[KeepAlive] Error in keep-alive loop: {e}")
     
     def _send_pings(self):
-        """Send PING to all connected peers"""
-        # This will be called by the parent with the list of peer_ids
+        """Envia PING para todos os peers conectados"""
+        # Será chamado pelo pai com a lista de peer_ids
         pass
     
     def send_ping(self, peer_id: str) -> bool:
-        """Send PING to a specific peer"""
+        """Envia PING para um peer específico"""
         msg_id = str(uuid.uuid4())
         ping = Message(
             msg_type=MessageType.PING,
@@ -88,6 +88,6 @@ class KeepAlive:
         return success
     
     def clear_peer(self, peer_id: str):
-        """Clear pending pings for a peer"""
+        """Limpa pings pendentes para um peer"""
         with self.lock:
             self.pending_pings.pop(peer_id, None)
