@@ -1,12 +1,13 @@
 {
   "rendezvous": {
-    "host": "pyp2p.mfcaetano.cc",
+    "host": "192.168.50.2",
     "port": 8080
   },
   "peer": {
     "namespace": "CIC",
-    "name": "peer1",
-    "port": 4000
+    "name": "grupo11",
+    "port": 4000,
+    "ttl": 7200
   },
   "connection": {
     "max_reconnect_attempts": 5,

@@ -32,6 +32,11 @@ class PeerConnection:
     def start(self):
         """Inicia recebimento de mensagens"""
         self.running = True
+        # Configura timeout de envio para evitar bloqueio indefinido
+        try:
+            self.sock.settimeout(10)  # 10s timeout para operações de socket
+        except:
+            pass
         self.recv_thread = threading.Thread(target=self._receive_loop, daemon=True)
         self.recv_thread.start()
     
@@ -45,6 +50,8 @@ class PeerConnection:
     
     def send_message(self, message: Message) -> bool:
         """Envia uma mensagem para o peer"""
+        if not self.running:
+            return False
         try:
             with self.send_lock:
                 msg_json = json.dumps(message.to_dict()) + "\n"
@@ -54,9 +61,14 @@ class PeerConnection:
                     logger.error(f"Message too large: {len(msg_bytes)} bytes")
                     return False
                 
+                # Usa timeout para evitar bloqueio indefinido
+                self.sock.settimeout(5)
                 self.sock.sendall(msg_bytes)
                 logger.debug(f"Sent {message.msg_type.value} to {self.peer_id}")
                 return True
+        except socket.timeout:
+            logger.error(f"Timeout sending message to {self.peer_id}")
+            return False
         except Exception as e:
             logger.error(f"Error sending message to {self.peer_id}: {e}")
             return False

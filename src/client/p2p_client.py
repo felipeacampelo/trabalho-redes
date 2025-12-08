@@ -88,20 +88,23 @@ class P2PClient:
         self.stop_event = threading.Event()  # Evento para interromper sleeps
         self.discovery_thread = None
         self.ping_thread = None
+        self.register_thread = None
         self.discovery_interval = config['connection']['discovery_interval']
+        self.ttl = config['peer'].get('ttl', 7200)  # TTL do registro
     
     def start(self):
         """Inicia o cliente P2P"""
         logger.info(f"Starting P2P Client: {self.peer_id}")
         
         # Registra no Rendezvous
-        result = self.rendezvous.register(self.namespace, self.name, self.port)
+        result = self.rendezvous.register(self.namespace, self.name, self.port, self.ttl)
         if not result:
             logger.error("Failed to register with Rendezvous server")
             return False
         
         # Armazena nosso IP público para detecção de peer local
         self.my_public_ip = result.get('ip')
+        self.registered_ttl = result.get('ttl', self.ttl)  # TTL confirmado pelo servidor
         logger.info(f"Registered with Rendezvous: {result}")
         
         # Inicia servidor de peers
@@ -122,6 +125,10 @@ class P2PClient:
         # Inicia ping periódico
         self.ping_thread = threading.Thread(target=self._ping_loop, daemon=True)
         self.ping_thread.start()
+        
+        # Inicia renovação periódica do registro
+        self.register_thread = threading.Thread(target=self._register_loop, daemon=True)
+        self.register_thread.start()
         
         # Inicia CLI
         self.cli.start()
@@ -149,6 +156,8 @@ class P2PClient:
             self.discovery_thread.join(timeout=2)
         if self.ping_thread and self.ping_thread.is_alive():
             self.ping_thread.join(timeout=2)
+        if self.register_thread and self.register_thread.is_alive():
+            self.register_thread.join(timeout=2)
         
         # Agora envia BYE para todos os peers conectados
         with self.conn_lock:
@@ -223,6 +232,33 @@ class P2PClient:
                 
             except Exception as e:
                 logger.error(f"Error in ping loop: {e}")
+    
+    def _register_loop(self):
+        """Renova registro no Rendezvous periodicamente antes do TTL expirar"""
+        # Renova com 50% do TTL restante (ex: TTL=7200s -> renova a cada 3600s)
+        renew_interval = max(60, self.registered_ttl // 2)
+        
+        while self.running:
+            try:
+                # Aguarda intervalo de renovação
+                if self.stop_event.wait(timeout=renew_interval):
+                    break  # Evento sinalizado, sair do loop
+                if not self.running:
+                    break
+                
+                # Renova registro
+                logger.info(f"[Register] Renewing registration (TTL={self.ttl}s)")
+                result = self.rendezvous.register(self.namespace, self.name, self.port, self.ttl)
+                
+                if result:
+                    self.registered_ttl = result.get('ttl', self.ttl)
+                    renew_interval = max(60, self.registered_ttl // 2)
+                    logger.info(f"[Register] Registration renewed, next in {renew_interval}s")
+                else:
+                    logger.error("[Register] Failed to renew registration")
+                
+            except Exception as e:
+                logger.error(f"Error in register loop: {e}")
     
     def _connect_to_peer(self, peer: PeerInfo) -> bool:
         """Estabelece conexão de saída para um peer"""
@@ -372,13 +408,17 @@ class P2PClient:
         msg_type = message.msg_type
         
         if msg_type == MessageType.PING:
-            # Responde com PONG
+            # Responde com PONG em thread separada para não bloquear
             pong = Message(
                 msg_type=MessageType.PONG,
                 msg_id=message.msg_id,
                 timestamp=datetime.now().isoformat()
             )
-            self._send_message_to_peer(peer_id, pong)
+            threading.Thread(
+                target=self._send_message_to_peer,
+                args=(peer_id, pong),
+                daemon=True
+            ).start()
         
         elif msg_type == MessageType.PONG:
             # Trata PONG
@@ -386,14 +426,19 @@ class P2PClient:
         
         elif msg_type == MessageType.SEND:
             # Mensagem direta
-            print(f"\n[{peer_id}] {message.payload}")
+            print(f"\n[{peer_id}] {message.payload}", flush=True)
             
             if message.require_ack:
-                self.message_router.send_ack(peer_id, message.msg_id)
+                # Envia ACK em thread separada para não bloquear recebimento
+                threading.Thread(
+                    target=self.message_router.send_ack,
+                    args=(peer_id, message.msg_id),
+                    daemon=True
+                ).start()
         
         elif msg_type == MessageType.PUB:
             # Mensagem publicada
-            print(f"\n[{peer_id} -> {message.dst}] {message.payload}")
+            print(f"\n[{peer_id} -> {message.dst}] {message.payload}", flush=True)
         
         elif msg_type == MessageType.ACK:
             # ACK para mensagem enviada
@@ -403,20 +448,28 @@ class P2PClient:
             # Peer está saindo
             logger.info(f"Received BYE from {peer_id}: {message.reason}")
             
-            # Envia BYE_OK
-            bye_ok = Message(
-                msg_type=MessageType.BYE_OK,
-                msg_id=message.msg_id,
-                src=self.peer_id,
-                dst=peer_id
-            )
-            self._send_message_to_peer(peer_id, bye_ok)
+            # Envia BYE_OK e fecha conexão em thread separada
+            # Passa valores como argumentos para evitar problemas de closure
+            def handle_bye(pid, msg_id):
+                bye_ok = Message(
+                    msg_type=MessageType.BYE_OK,
+                    msg_id=msg_id,
+                    src=self.peer_id,
+                    dst=pid
+                )
+                self._send_message_to_peer(pid, bye_ok)
+                
+                # Fecha conexão (conn_lock protege acesso a connections)
+                with self.conn_lock:
+                    conn = self.connections.get(pid)
+                    if conn:
+                        conn.stop()
             
-            # Fecha conexão
-            with self.conn_lock:
-                conn = self.connections.get(peer_id)
-                if conn:
-                    conn.stop()
+            threading.Thread(
+                target=handle_bye,
+                args=(peer_id, message.msg_id),
+                daemon=True
+            ).start()
         
         elif msg_type == MessageType.BYE_OK:
             # Peer confirmou nosso BYE
@@ -426,10 +479,14 @@ class P2PClient:
             # Mensagem de relay - para nós ou para encaminhar
             if message.dst == self.peer_id:
                 # Mensagem é para nós - exibe
-                print(f"\n[RELAY from {message.src}] {message.payload}")
+                print(f"\n[RELAY from {message.src}] {message.payload}", flush=True)
             else:
-                # Encaminha a mensagem de relay
-                self.message_router.handle_relay(peer_id, message)
+                # Encaminha a mensagem de relay em thread separada
+                threading.Thread(
+                    target=self.message_router.handle_relay,
+                    args=(peer_id, message),
+                    daemon=True
+                ).start()
     
     def _send_message_to_peer(self, peer_id: str, message: Message) -> bool:
         """Envia mensagem para um peer específico"""

@@ -91,6 +91,20 @@ class CLI:
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
         
+        # Comandos que podem bloquear são executados em thread separada
+        blocking_cmds = ["/msg", "/pub", "/relay", "/peers", "/reconnect"]
+        if cmd in blocking_cmds:
+            threading.Thread(
+                target=self._execute_command,
+                args=(cmd, args),
+                daemon=True
+            ).start()
+            return
+        
+        self._execute_command(cmd, args)
+    
+    def _execute_command(self, cmd: str, args: str):
+        """Executa um comando (pode ser chamado em thread separada)"""
         try:
             if cmd == "/help":
                 self.print_help()
